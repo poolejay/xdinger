@@ -5,11 +5,21 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 
-/** Prefer NEXT_PUBLIC_APP_URL so Supabase `redirect_to` matches your allow list (avoids long *.vercel.app preview hosts). */
+/**
+ * Safe site origin for Supabase `redirect_to`. Must be a full https URL; otherwise GoTrue
+ * can return "Invalid path specified in request URL".
+ */
 function getAppOrigin() {
   if (typeof window === "undefined") return "";
-  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (fromEnv) return fromEnv;
+  const raw = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "").replace(/^["']|["']$/g, "");
+  if (raw) {
+    try {
+      const u = new URL(raw);
+      if (u.protocol === "https:" || u.protocol === "http:") return u.origin;
+    } catch {
+      /* use window below */
+    }
+  }
   return window.location.origin;
 }
 
@@ -29,13 +39,9 @@ export default function LoginPage() {
     try {
       const supabase = createClient();
       if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${getAppOrigin()}/auth/callback`,
-          },
-        });
+        // No emailRedirectTo: omit ?redirect_to= on /signup. PKCE + redirect_to is strict on some projects;
+        // post-confirm / magic links use Supabase "Site URL" from the dashboard instead.
+        const { error: signUpError } = await supabase.auth.signUp({ email, password });
         if (signUpError) throw signUpError;
         await fetch("/api/auth/start-trial", { method: "POST" });
       } else {
