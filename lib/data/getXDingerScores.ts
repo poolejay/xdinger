@@ -1,11 +1,11 @@
-import { createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 import { unstable_cache } from "next/cache";
 
 export async function getXDingerScores(date?: string) {
   const targetDate = date ?? new Date().toISOString().split("T")[0];
   return unstable_cache(
     async () => {
-      const supabase = await createServerClient();
+      const supabase = await createClient();
       const { data, error } = await supabase
         .from("xdinger_scores")
         .select(
@@ -30,7 +30,7 @@ export async function getXDingerScores(date?: string) {
 }
 
 export async function getLaserScores(date?: string) {
-  const supabase = await createServerClient();
+  const supabase = await createClient();
   const today = date ?? new Date().toISOString().split("T")[0];
 
   const { data, error } = await supabase

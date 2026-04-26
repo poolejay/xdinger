@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { DateToggle } from "@/components/dashboard/DateToggle";
 import { EmptySlate } from "@/components/dashboard/EmptySlate";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { MatchupTable } from "@/components/dashboard/MatchupTable";
@@ -25,6 +26,8 @@ type DashboardClientShellProps = {
   greenCount: number;
   gameCount: number;
   previewRows: XDingerRow[];
+  /** YYYY-MM-DD used for fetches and DateToggle */
+  selectedDate: string;
 };
 
 export function DashboardClientShell({
@@ -39,6 +42,7 @@ export function DashboardClientShell({
   greenCount,
   gameCount,
   previewRows,
+  selectedDate,
 }: DashboardClientShellProps) {
   const [showPaywall, setShowPaywall] = useState(false);
   const matchupCount = data.length;
@@ -56,6 +60,9 @@ export function DashboardClientShell({
           greenCount={greenCount}
           gameCount={gameCount}
         />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <DateToggle selectedDate={selectedDate} />
+        </div>
         <FilterBar matchupCount={matchupCount} />
         <div className="flex items-start gap-4">
           <div className="min-w-0 flex-1">

@@ -1,7 +1,7 @@
-import { createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function startTrial(userId: string) {
-  const supabase = await createServerClient();
+  const supabase = await createClient();
 
   const trialStart = new Date();
   const trialExpiry = new Date(trialStart);
