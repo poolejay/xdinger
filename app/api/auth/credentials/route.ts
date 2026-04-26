@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { gotrueErrorMessage } from "@/lib/auth/gotrueErrorMessage";
 import { getNormalizedSupabaseUrl } from "@/lib/supabase/url";
 
 /**
@@ -47,15 +48,25 @@ export async function POST(request: Request) {
     });
   }
 
-  const data: Record<string, unknown> = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    const msg =
-      (typeof data.error_description === "string" && data.error_description) ||
-      (typeof data.msg === "string" && data.msg) ||
-      (typeof data.error === "string" && data.error) ||
-      (action === "signin" ? "Sign in failed" : "Sign up failed");
-    return NextResponse.json({ error: String(msg) }, { status: res.status });
+  const raw = await res.text();
+  let data: unknown = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw) as unknown;
+    } catch {
+      return NextResponse.json(
+        { error: raw.length > 200 ? `${raw.slice(0, 200)}…` : raw || `Auth failed (${res.status})` },
+        { status: res.status },
+      );
+    }
   }
 
-  return NextResponse.json(data);
+  if (!res.ok) {
+    return NextResponse.json(
+      { error: gotrueErrorMessage(data, action, res.status) },
+      { status: res.status },
+    );
+  }
+
+  return NextResponse.json(data as Record<string, unknown>);
 }

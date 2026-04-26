@@ -45,9 +45,18 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: mode, email, password }),
       });
-      const payload = (await res.json()) as Record<string, unknown> & { error?: string };
+      let payload: Record<string, unknown> & { error?: string };
+      try {
+        payload = (await res.json()) as typeof payload;
+      } catch {
+        throw new Error(`Server returned ${res.status} ${res.statusText || ""}`.trim());
+      }
       if (!res.ok) {
-        throw new Error(payload.error || (mode === "signin" ? "Sign in failed" : "Sign up failed"));
+        const msg =
+          typeof payload.error === "string" && payload.error.trim()
+            ? payload.error
+            : `Request failed (${res.status})`;
+        throw new Error(msg);
       }
       const tokens = parseSessionTokens(payload);
       if (tokens) {
