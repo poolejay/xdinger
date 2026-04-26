@@ -21,7 +21,13 @@ export default function LoginPage() {
     try {
       const supabase = createClient();
       if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({ email, password });
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
         if (signUpError) throw signUpError;
         await fetch("/api/auth/start-trial", { method: "POST" });
       } else {
@@ -43,7 +49,7 @@ export default function LoginPage() {
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
     if (oauthError) setError(oauthError.message);
