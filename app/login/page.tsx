@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 
+/** Prefer NEXT_PUBLIC_APP_URL so Supabase `redirect_to` matches your allow list (avoids long *.vercel.app preview hosts). */
+function getAppOrigin() {
+  if (typeof window === "undefined") return "";
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  if (fromEnv) return fromEnv;
+  return window.location.origin;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -25,7 +33,7 @@ export default function LoginPage() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: `${getAppOrigin()}/auth/callback`,
           },
         });
         if (signUpError) throw signUpError;
@@ -49,7 +57,7 @@ export default function LoginPage() {
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${getAppOrigin()}/auth/callback`,
       },
     });
     if (oauthError) setError(oauthError.message);
