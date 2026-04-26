@@ -1,0 +1,119 @@
+name: MLB Data Pipeline
+
+on:
+  schedule:
+    - cron: "0 11 * * *"
+    - cron: "0 13 * * *"
+    - cron: "30 13 * * *"
+    - cron: "0 15 * * *"
+    - cron: "30 16 * * *"
+    - cron: "0 20 * * *"
+    - cron: "30 21 * * *"
+    - cron: "0 22 * * *"
+    - cron: "0 4 * * *"
+
+  workflow_dispatch:
+    inputs:
+      pipeline_type:
+        description: "Pipeline type"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - full
+          - research
+          - statcast_refresh
+          - fast_update
+      mode:
+        description: "Today or tomorrow"
+        required: true
+        default: "today"
+        type: choice
+        options:
+          - today
+          - tomorrow
+      window:
+        description: "Game window"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - morning
+          - afternoon
+          - evening
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('scripts/requirements.txt') }}
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: Determine pipeline type from schedule
+        id: pipeline_config
+        run: |
+          HOUR=$(date -u +%H)
+          MINUTE=$(date -u +%M)
+          TIME="${HOUR}${MINUTE}"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "type=${{ github.event.inputs.pipeline_type }}" >> $GITHUB_OUTPUT
+            echo "mode=${{ github.event.inputs.mode }}" >> $GITHUB_OUTPUT
+            echo "window=${{ github.event.inputs.window }}" >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "1100" ]; then
+            echo "type=full" >> $GITHUB_OUTPUT
+            echo "mode=today" >> $GITHUB_OUTPUT
+            echo "window=" >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "1300" ] || [ "$TIME" = "1330" ]; then
+            echo "type=fast_update" >> $GITHUB_OUTPUT
+            echo "mode=today" >> $GITHUB_OUTPUT
+            echo "window=morning" >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "1500" ] || [ "$TIME" = "1630" ]; then
+            echo "type=fast_update" >> $GITHUB_OUTPUT
+            echo "mode=today" >> $GITHUB_OUTPUT
+            echo "window=afternoon" >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "2000" ] || [ "$TIME" = "2130" ]; then
+            echo "type=fast_update" >> $GITHUB_OUTPUT
+            echo "mode=today" >> $GITHUB_OUTPUT
+            echo "window=evening" >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "2200" ]; then
+            echo "type=research" >> $GITHUB_OUTPUT
+            echo "mode=tomorrow" >> $GITHUB_OUTPUT
+            echo "window=" >> $GITHUB_OUTPUT
+          elif [ "$TIME" = "0400" ]; then
+            echo "type=statcast_refresh" >> $GITHUB_OUTPUT
+            echo "mode=today" >> $GITHUB_OUTPUT
+            echo "window=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run pipeline
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          python scripts/pipeline/run_pipeline.py \
+            --type ${{ steps.pipeline_config.outputs.type }} \
+            --mode ${{ steps.pipeline_config.outputs.mode }} \
+            --window "${{ steps.pipeline_config.outputs.window }}"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Pipeline failed at $(date)"

@@ -1,0 +1,7 @@
+{
+  "_meta": {
+    "date": "2026-04-26",
+    "note": "BvP requires batter/pitcher matchup pairs; will be enriched after matchup ingest is added.",
+    "sample_rows": 0
+  }
+}
