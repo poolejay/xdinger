@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { parseSessionTokens } from "@/lib/auth/parseSessionTokens";
 import { createClient } from "@/lib/supabase/client";
 
 /**
@@ -38,35 +39,31 @@ export default function LoginPage() {
 
     try {
       const supabase = createClient();
-      if (mode === "signup") {
-        // Server-side REST sign-up (no browser PKCE) — avoids strict redirect/path errors from the client SDK.
-        const res = await fetch("/api/auth/signup-direct", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
+      // GoTrue REST on the server (no browser PKCE) for both sign-in and sign-up.
+      const res = await fetch("/api/auth/credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: mode, email, password }),
+      });
+      const payload = (await res.json()) as Record<string, unknown> & { error?: string };
+      if (!res.ok) {
+        throw new Error(payload.error || (mode === "signin" ? "Sign in failed" : "Sign up failed"));
+      }
+      const tokens = parseSessionTokens(payload);
+      if (tokens) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
         });
-        const payload = (await res.json()) as {
-          error?: string;
-          access_token?: string;
-          refresh_token?: string;
-        };
-        if (!res.ok) {
-          throw new Error(payload.error || "Sign up failed");
-        }
-        if (payload.access_token && payload.refresh_token) {
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: payload.access_token,
-            refresh_token: payload.refresh_token,
-          });
-          if (sessionError) throw sessionError;
-        } else {
-          setError("Check your email to confirm your account, then sign in here.");
-          return;
-        }
-        await fetch("/api/auth/start-trial", { method: "POST" });
+        if (sessionError) throw sessionError;
+      } else if (mode === "signup") {
+        setError("Check your email to confirm your account, then sign in here.");
+        return;
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) throw signInError;
+        throw new Error("No session returned. Try again or contact support.");
+      }
+      if (mode === "signup") {
+        await fetch("/api/auth/start-trial", { method: "POST" });
       }
       router.push("/dashboard");
       router.refresh();
