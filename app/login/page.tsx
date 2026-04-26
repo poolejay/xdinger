@@ -39,10 +39,30 @@ export default function LoginPage() {
     try {
       const supabase = createClient();
       if (mode === "signup") {
-        // No emailRedirectTo: omit ?redirect_to= on /signup. PKCE + redirect_to is strict on some projects;
-        // post-confirm / magic links use Supabase "Site URL" from the dashboard instead.
-        const { error: signUpError } = await supabase.auth.signUp({ email, password });
-        if (signUpError) throw signUpError;
+        // Server-side REST sign-up (no browser PKCE) — avoids strict redirect/path errors from the client SDK.
+        const res = await fetch("/api/auth/signup-direct", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const payload = (await res.json()) as {
+          error?: string;
+          access_token?: string;
+          refresh_token?: string;
+        };
+        if (!res.ok) {
+          throw new Error(payload.error || "Sign up failed");
+        }
+        if (payload.access_token && payload.refresh_token) {
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: payload.access_token,
+            refresh_token: payload.refresh_token,
+          });
+          if (sessionError) throw sessionError;
+        } else {
+          setError("Check your email to confirm your account, then sign in here.");
+          return;
+        }
         await fetch("/api/auth/start-trial", { method: "POST" });
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
